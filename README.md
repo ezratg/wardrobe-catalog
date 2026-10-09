@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Wardrobe
 
-## Getting Started
+Your closet as a catalog. Upload photos of your clothes, the background is removed automatically, and everything is browsable and filterable like a shopping site.
 
-First, run the development server:
+## What works today
+
+- Accounts (email + password, sessions stored server-side)
+- Batch photo upload from desktop or phone (photos are downscaled on the device first)
+- Automatic background removal on the server, with the garment cropped and centred
+- Colour detection from the cutout (snapped to a named palette)
+- Catalog with category, colour, weather, style and status filters, search, sorting, favourites
+- Item page with tags: category, type, colours, pattern, dress code, weather, style, laundry status, brand, size, notes, wear count
+
+## Planned next
+
+Weather-aware suggestions, Google Calendar, chat-driven outfit design, and sharing a closet with friends. The schema already has `outfits`, `outfit_items` and `closet_shares` tables for these.
+
+## Running it
+
+Requires Node 22+.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Data (SQLite database and photos) lives in `./data`, or wherever `DATA_DIR` points. Migrations run automatically on start.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Tests
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run test:e2e   # builds, starts on :3123, runs desktop + mobile flows
+```
 
-## Learn More
+Set `PW_CHROMIUM_PATH` to use an already-installed Chromium instead of `npx playwright install`.
 
-To learn more about Next.js, take a look at the following resources:
+## Stack
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Next.js 16 (App Router, Cache Components) + TypeScript + Tailwind 4
+- SQLite via Drizzle ORM (`src/db/schema.ts`; `npm run db:generate` after schema changes)
+- Background removal: [`@imgly/background-removal-node`](https://github.com/imgly/background-removal-js), runs locally, no API key. Note its licence is AGPL-3.0. Swap the single function in `src/lib/images/background.ts` to use a hosted API instead.
+- Images processed with `sharp`; stored on local disk behind `src/lib/images/storage.ts` (swap for S3/R2 when deploying)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Background removal needs a regular Node server (not serverless), since the model is ~100 MB.
