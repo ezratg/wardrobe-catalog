@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   // instead of bundling them.
   serverExternalPackages: [
     "@imgly/background-removal-node",
+    "@huggingface/transformers",
     "onnxruntime-node",
     "better-sqlite3",
     "sharp",

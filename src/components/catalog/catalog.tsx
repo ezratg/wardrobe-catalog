@@ -72,7 +72,7 @@ export function Catalog({ user, filters }: { user: CurrentUser; filters: Catalog
                   <button className="btn-primary">Tag them automatically</button>
                 </form>
               ) : (
-                <span className="text-muted">Add an Anthropic API key to tag photos automatically (see the README).</span>
+                <span className="text-muted">Open a piece to add its tags.</span>
               )}
             </div>
           )}

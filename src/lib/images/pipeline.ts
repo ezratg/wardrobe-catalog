@@ -5,7 +5,8 @@ import { db, schema } from "@/db";
 import { removeBackground } from "./background";
 import { detectColors } from "./colors";
 import { readImage, writeImage } from "./storage";
-import { tagPhoto, taggerEnabled } from "./tagger";
+import { tagPhotoLocally } from "./local-tagger";
+import { claudeTaggerEnabled, tagPhoto, taggerEnabled } from "./tagger";
 
 const MAX_EDGE = 2000;
 const THUMB_EDGE = 640;
@@ -87,20 +88,21 @@ async function autoTagItem(itemId: string) {
   try {
     const img = (item.hasCutout && (await readImage(item.ownerId, itemId, "cutout"))) || (await readImage(item.ownerId, itemId, "original"));
     if (!img) throw new Error("Photo is missing");
-    const tags = await tagPhoto(img.data);
+    const tags = claudeTaggerEnabled() ? await tagPhoto(img.data) : await tagPhotoLocally(img.data, item.colors);
 
     // Re-read: the owner may have edited the item while we were waiting.
     const now = db.select().from(schema.items).where(eq(schema.items.id, itemId)).get();
     if (!now) return;
     db.update(schema.items)
       .set({
-        tagStatus: "done",
+        // "off" when the model couldn't tell what it is, so the owner is asked to tag it.
+        tagStatus: tags.category === "uncategorized" && now.category === "uncategorized" ? "off" : "done",
         tagError: null,
         name: now.name || tags.name,
         category: now.category === "uncategorized" ? tags.category : now.category,
         subcategory: now.subcategory || tags.subcategory || null,
-        pattern: now.pattern || tags.pattern,
-        formality: now.formality || tags.formality,
+        pattern: now.pattern || tags.pattern || null,
+        formality: now.formality || tags.formality || null,
         warmth: now.warmth.length ? now.warmth : tags.warmth,
         styles: now.styles.length ? now.styles : tags.styles,
         colors: now.colorsConfirmed || !tags.colors.length ? now.colors : tags.colors,

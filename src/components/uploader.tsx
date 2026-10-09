@@ -106,8 +106,8 @@ export function Uploader({ autoTag }: { autoTag: boolean }) {
     <div>
       <p className="mb-4 text-sm text-muted">
         {autoTag
-          ? "Each piece is named and tagged automatically, so you can drop in your whole closet at once."
-          : "Auto-tagging is off, so you'll tag pieces yourself. Add an Anthropic API key to turn it on (see the README)."}
+          ? "Each piece is named and tagged automatically, so you can drop in your whole closet at once. The very first photo takes a minute longer while the free tagging model downloads."
+          : "Auto-tagging is turned off, so you'll tag pieces yourself."}
       </p>
       <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
         <label htmlFor="cat" className="text-muted">These are all</label>

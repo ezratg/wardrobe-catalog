@@ -6,7 +6,7 @@ Your closet as a catalog. Upload photos of your clothes, the background is remov
 
 - Accounts (email + password, sessions stored server-side)
 - Batch photo upload from desktop or phone (photos are downscaled on the device first)
-- Auto-tagging (optional): Claude looks at each photo and fills in a name, category, type, colours, pattern, dress code, weather and style, so you can upload a whole closet at once. Anything you've already set is left alone. Existing untagged pieces can be tagged in one click from the catalog
+- Free auto-tagging: each photo gets a name ("Blue T-shirt"), category, type, pattern, dress code and weather, so you can upload a whole closet at once. It runs on your own machine with an open-source image model (CLIP), so there's no account or cost. Anything you've already set is left alone, and existing untagged pieces can be tagged in one click from the catalog
 - Automatic background removal on the server, with the garment cropped and centred
 - Colour detection from the cutout (snapped to a named palette)
 - Catalog with category, colour, weather, style and status filters, search, sorting, favourites
@@ -29,13 +29,11 @@ npm run dev        # http://localhost:3000
 
 Data (SQLite database and photos) lives in `./data`, or wherever `DATA_DIR` points. Migrations run automatically on start.
 
-### Turning on auto-tagging
+### Auto-tagging
 
-1. Create an API key at [console.anthropic.com](https://console.anthropic.com). Usage is billed to that account.
-2. Copy `.env.example` to `.env.local` and set `ANTHROPIC_API_KEY`.
-3. Restart the app.
+Works out of the box. The first photo you upload downloads the tagging model (about 150 MB, saved in `data/models`), so it takes a minute longer; after that each photo takes a second or two. Set `AUTO_TAG=off` in `.env.local` to turn it off.
 
-Each photo is one request to `claude-opus-5-5` with the image shrunk to 512px and low effort, which keeps it to a cent or two per photo. Set `AUTO_TAG_MODEL=claude-haiku-5-5` in `.env.local` for a cheaper model. Without a key, the app works the same and you tag pieces yourself.
+Optional, paid: if you set `ANTHROPIC_API_KEY` in `.env.local` (copy `.env.example`), Claude does the tagging instead. Names are more descriptive and pieces also get style tags. Usage is billed to that Anthropic account, roughly a cent or two per photo.
 
 ### Tests
 

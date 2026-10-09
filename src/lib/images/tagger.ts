@@ -3,15 +3,21 @@ import sharp from "sharp";
 import { CATEGORIES, COLORS, FORMALITY, PATTERNS, STYLES, SUBCATEGORIES, WARMTH } from "@/lib/taxonomy";
 
 /**
- * Auto-tagging with Claude's vision. Looks at the cut-out photo and fills in
- * name, category, type, colours, pattern, dress code, weather and style.
- *
- * Only runs when ANTHROPIC_API_KEY is set. Each photo is one small request
- * (image downscaled to 512px). Set AUTO_TAG_MODEL to use a different model.
+ * Auto-tagging. By default it runs free on this machine (see local-tagger.ts).
+ * If ANTHROPIC_API_KEY is set, Claude's vision is used instead: more precise
+ * names plus style tags, billed to that API account. AUTO_TAG=off disables both.
  */
 export function taggerEnabled() {
-  return Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) && process.env.AUTO_TAG !== "off";
+  return process.env.AUTO_TAG !== "off";
 }
+
+export function claudeTaggerEnabled() {
+  return taggerEnabled() && Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
+}
+
+// Claude-based tagging: looks at the cut-out photo and fills in name, category,
+// type, colours, pattern, dress code, weather and style. Each photo is one small
+// request (image downscaled to 512px). Set AUTO_TAG_MODEL to use a different model.
 
 const MODEL = process.env.AUTO_TAG_MODEL || "claude-opus-5-5";
 
