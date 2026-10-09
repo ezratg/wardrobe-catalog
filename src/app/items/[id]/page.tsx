@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { markWorn, retryAutoTag, retryBackground, toggleFavorite } from "@/app/actions/items";
+import { markWorn, redetectItemTags, retryAutoTag, retryBackground, toggleFavorite } from "@/app/actions/items";
 import { StatusPoller } from "@/components/catalog/status-poller";
 import { DeleteButton } from "@/components/item/delete-button";
 import { ImageViewer } from "@/components/item/image-viewer";
@@ -74,7 +74,10 @@ async function ItemDetail({ params }: Pick<PageProps<"/items/[id]">, "params">) 
           <p role="status" className="mb-6 rounded-xl bg-tile px-4 py-3 text-sm">Filling in tags from the photo…</p>
         )}
         {item.tagStatus === "done" && !item.colorsConfirmed && (
-          <p className="mb-6 rounded-xl bg-tile px-4 py-3 text-sm">These tags were filled in automatically. Check them and fix anything that’s off.</p>
+          <form action={redetectItemTags.bind(null, item.id)} className="mb-6 flex flex-wrap items-center gap-3 rounded-xl bg-tile px-4 py-3 text-sm">
+            <span>These tags were filled in automatically. Check them and fix anything that’s off.</span>
+            <button className="underline">Detect again</button>
+          </form>
         )}
         {item.tagStatus === "failed" && (
           <form action={retryAutoTag.bind(null, item.id)} className="mb-6 flex flex-wrap items-center gap-3 rounded-xl bg-tile px-4 py-3 text-sm">

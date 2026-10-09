@@ -17,7 +17,7 @@ export const CATEGORIES = [
 export type Category = (typeof CATEGORIES)[number]["id"];
 
 export const SUBCATEGORIES: Partial<Record<Category, string[]>> = {
-  top: ["T-shirt", "Tank", "Shirt", "Blouse", "Polo", "Long sleeve", "Crop top", "Bodysuit"],
+  top: ["T-shirt", "Tank", "Shirt", "Blouse", "Polo", "Henley", "Long sleeve", "Crop top", "Bodysuit"],
   bottom: ["Jeans", "Trousers", "Shorts", "Skirt", "Joggers", "Leggings"],
   dress: ["Mini dress", "Midi dress", "Maxi dress", "Jumpsuit", "Romper"],
   outerwear: ["Jacket", "Coat", "Blazer", "Raincoat", "Puffer", "Vest"],

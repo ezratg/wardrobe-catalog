@@ -6,7 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { requireUser } from "@/lib/auth/dal";
-import { autoTagUntagged, retry, retryTagging } from "@/lib/images/pipeline";
+import { autoTagUntagged, redetectTags, retry, retryTagging } from "@/lib/images/pipeline";
 import { deleteItemImages } from "@/lib/images/storage";
 import { CATEGORIES, COLORS, FORMALITY, LAUNDRY, STYLES, WARMTH } from "@/lib/taxonomy";
 
@@ -105,5 +105,17 @@ export async function retryAutoTag(itemId: string) {
 export async function autoTagAll() {
   const user = await requireUser();
   autoTagUntagged(user.id);
+  revalidatePath("/");
+}
+
+export async function redetectItemTags(itemId: string) {
+  const user = await requireUser();
+  redetectTags(user.id, itemId);
+  revalidatePath(`/items/${itemId}`);
+}
+
+export async function redetectAllTags() {
+  const user = await requireUser();
+  redetectTags(user.id);
   revalidatePath("/");
 }

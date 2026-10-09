@@ -145,6 +145,41 @@ export function autoTagUntagged(ownerId: string) {
   return rows.length;
 }
 
+// Auto-tagged pieces the owner hasn't saved yet (saving the form confirms them).
+const unreviewed = (ownerId: string) =>
+  and(eq(schema.items.ownerId, ownerId), eq(schema.items.tagStatus, "done"), eq(schema.items.colorsConfirmed, false));
+
+export function countUnreviewed(ownerId: string) {
+  return db.select({ id: schema.items.id }).from(schema.items).where(unreviewed(ownerId)).all().length;
+}
+
+/**
+ * Throw away automatic tags the owner hasn't checked and detect them again,
+ * e.g. after the tagger improves. One piece, or all of them.
+ */
+export function redetectTags(ownerId: string, itemId?: string) {
+  if (!taggerEnabled()) return 0;
+  const rows = db
+    .update(schema.items)
+    .set({
+      tagStatus: "pending",
+      tagError: null,
+      name: "",
+      category: "uncategorized",
+      subcategory: null,
+      pattern: null,
+      formality: null,
+      warmth: [],
+      styles: [],
+      updatedAt: new Date(),
+    })
+    .where(itemId ? and(unreviewed(ownerId), eq(schema.items.id, itemId)) : unreviewed(ownerId))
+    .returning({ id: schema.items.id })
+    .all();
+  rows.forEach((r) => enqueue(r.id));
+  return rows.length;
+}
+
 // A small in-process queue: one photo at a time keeps memory and CPU in check,
 // and keeps auto-tagging requests to one at a time.
 // Items stay "pending" in the database, so anything left over is picked up

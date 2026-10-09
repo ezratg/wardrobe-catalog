@@ -8,24 +8,41 @@ import type { Tags } from "./tagger";
  * Free, on-device auto-tagging with CLIP, an open-source image model that
  * scores a photo against text descriptions. No account or API key needed; the
  * model (about 150 MB) is downloaded once on first use and cached in
- * data/models. It picks the garment type; dress code and weather come from a
- * per-type table; the name combines the detected colour and the type.
+ * data/models. It decides in two steps, first the broad category and then the
+ * type within it, so near-identical types only compete with each other. Dress
+ * code and weather come from a per-type table; the name combines the detected
+ * colour and the type.
  */
 const MODEL_ID = "Xenova/clip-vit-base-patch32";
 
 type Garment = { category: string; subcategory: string; prompt: string; formality: string; warmth: string[] };
 
-// One row per thing CLIP is asked to recognise. Prompts are phrased the way
-// product photos are usually captioned, which CLIP matches best.
+// Several phrasings per category; their scores are averaged so no single
+// word (CLIP is oddly fond of "polo") decides on its own.
+export const CATEGORY_PROMPTS: Record<string, string[]> = {
+  top: ["a t-shirt", "a shirt", "a top", "a blouse", "a polo shirt", "a tank top"],
+  bottom: ["a pair of pants", "a pair of jeans", "a pair of trousers", "a pair of shorts", "a skirt"],
+  dress: ["a dress", "a jumpsuit"],
+  outerwear: ["a jacket", "a coat", "a blazer"],
+  knitwear: ["a sweater", "a hoodie", "a cardigan"],
+  shoes: ["a pair of shoes", "a pair of sneakers", "a pair of boots"],
+  bag: ["a bag", "a handbag", "a backpack"],
+  accessory: ["a hat", "a scarf", "a belt", "sunglasses"],
+};
+
+// Types within each category. Prompts describe what tells look-alikes apart
+// (a polo's collar and buttons); bare "a polo shirt" wins on plain T-shirts.
+// Tuned on real closet photos; check changes with a few before shipping.
 export const GARMENTS: Garment[] = [
-  { category: "top", subcategory: "T-shirt", prompt: "a t-shirt", formality: "casual", warmth: ["hot", "warm"] },
-  { category: "top", subcategory: "Tank", prompt: "a tank top", formality: "casual", warmth: ["hot"] },
+  { category: "top", subcategory: "T-shirt", prompt: "a short sleeve t-shirt", formality: "casual", warmth: ["hot", "warm"] },
+  { category: "top", subcategory: "Polo", prompt: "a polo shirt with a collar and buttons", formality: "casual", warmth: ["hot", "warm"] },
+  { category: "top", subcategory: "Henley", prompt: "a henley shirt", formality: "casual", warmth: ["warm", "mild"] },
   { category: "top", subcategory: "Shirt", prompt: "a button-up shirt", formality: "smart", warmth: ["warm", "mild"] },
   { category: "top", subcategory: "Blouse", prompt: "a blouse", formality: "smart", warmth: ["warm", "mild"] },
-  { category: "top", subcategory: "Polo", prompt: "a polo shirt", formality: "casual", warmth: ["hot", "warm"] },
   { category: "top", subcategory: "Long sleeve", prompt: "a long sleeve top", formality: "casual", warmth: ["mild"] },
+  { category: "top", subcategory: "Tank", prompt: "a sleeveless tank top", formality: "casual", warmth: ["hot"] },
   { category: "top", subcategory: "Crop top", prompt: "a crop top", formality: "casual", warmth: ["hot", "warm"] },
-  { category: "bottom", subcategory: "Jeans", prompt: "a pair of jeans", formality: "casual", warmth: ["warm", "mild", "cold"] },
+  { category: "bottom", subcategory: "Jeans", prompt: "a pair of denim jeans", formality: "casual", warmth: ["warm", "mild", "cold"] },
   { category: "bottom", subcategory: "Trousers", prompt: "a pair of trousers", formality: "smart", warmth: ["warm", "mild", "cold"] },
   { category: "bottom", subcategory: "Shorts", prompt: "a pair of shorts", formality: "casual", warmth: ["hot", "warm"] },
   { category: "bottom", subcategory: "Skirt", prompt: "a skirt", formality: "smart", warmth: ["hot", "warm", "mild"] },
@@ -84,7 +101,24 @@ async function loadClassifier(): Promise<Classifier> {
 }
 
 /** Below this, the model is guessing; leave the item for the owner to tag. */
-const MIN_CONFIDENCE = 0.15;
+const MIN_CONFIDENCE = 0.3;
+
+const best = (scored: Scored) => [...scored].sort((a, b) => b.score - a.score)[0];
+
+/** Picks the category whose prompts score best on average (geometric mean), as a 0–1 share. */
+async function pickCategory(classify: Classifier, pixels: Pixels) {
+  const prompts = Object.values(CATEGORY_PROMPTS).flat();
+  const scored = await classify(pixels, prompts, { hypothesis_template: "a photo of {}" });
+  const score = new Map(scored.map((s) => [s.label, s.score]));
+  const logs = Object.entries(CATEGORY_PROMPTS).map(([category, ps]) => ({
+    category,
+    log: ps.reduce((sum, p) => sum + Math.log(Math.max(score.get(p) ?? 0, 1e-9)), 0) / ps.length,
+  }));
+  const max = Math.max(...logs.map((l) => l.log));
+  const total = logs.reduce((sum, l) => sum + Math.exp(l.log - max), 0);
+  const top = logs.reduce((a, b) => (b.log > a.log ? b : a));
+  return { category: top.category, confidence: 1 / total };
+}
 
 export async function tagPhotoLocally(image: Buffer, colors: string[], classify?: Classifier): Promise<Tags> {
   if (!classify) {
@@ -95,27 +129,34 @@ export async function tagPhotoLocally(image: Buffer, colors: string[], classify?
     classify = await classifier;
   }
 
-  // Show CLIP the garment on white, as in product shots.
+  // Show CLIP the whole garment, centred on white in a square as in product
+  // shots. CLIP crops to a square, which would cut off a tall photo's collar.
   const { data, info } = await sharp(image)
-    .resize(448, 448, { fit: "inside" })
     .flatten({ background: "#ffffff" })
+    .trim({ threshold: 10 })
+    .resize(400, 400, { fit: "contain", background: "#ffffff" })
+    .extend({ top: 24, bottom: 24, left: 24, right: 24, background: "#ffffff" })
     .removeAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
   const pixels: Pixels = { data, width: info.width, height: info.height };
-  const kinds = await classify(pixels, GARMENTS.map((g) => g.prompt), { hypothesis_template: "a product photo of {}" });
-  const top = [...kinds].sort((a, b) => b.score - a.score)[0];
-  const garment = GARMENTS.find((g) => g.prompt === top?.label);
-  if (!garment || top.score < MIN_CONFIDENCE) {
+
+  const { category, confidence } = await pickCategory(classify, pixels);
+  const options = GARMENTS.filter((g) => g.category === category);
+  const kind = best(await classify(pixels, options.map((g) => g.prompt), { hypothesis_template: "a product photo of {}" }));
+  const garment = options.find((g) => g.prompt === kind?.label);
+  if (!garment || confidence < MIN_CONFIDENCE) {
     return { name: "", category: "uncategorized", subcategory: "", colors, pattern: "", formality: "", warmth: [], styles: [] };
   }
 
   let pattern = garment.subcategory === "Jeans" ? "Denim wash" : "Solid";
   if (pattern === "Solid") {
     const scored = await classify(pixels, PATTERNS.map((x) => x.prompt), { hypothesis_template: "a close-up of {}" });
-    const p = [...scored].sort((a, b) => b.score - a.score)[0];
-    // Patterns are easy to over-call; only accept a confident one.
-    if (p && p.score >= 0.5) pattern = PATTERNS.find((x) => x.prompt === p.label)?.pattern ?? "Solid";
+    const p = best(scored);
+    // Patterns are easy to over-call; only accept a confident one. A small
+    // logo or neck label reads as "graphic", so that needs extra certainty.
+    const found = PATTERNS.find((x) => x.prompt === p?.label)?.pattern;
+    if (found && p.score >= (found === "Graphic" ? 0.7 : 0.5)) pattern = found;
   }
 
   return {

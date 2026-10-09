@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { autoTagAll } from "@/app/actions/items";
+import { autoTagAll, redetectAllTags } from "@/app/actions/items";
 import type { CurrentUser } from "@/lib/auth/dal";
+import { countUnreviewed } from "@/lib/images/pipeline";
 import { taggerEnabled } from "@/lib/images/tagger";
 import { activeFilterCount, filtersToQuery, queryCatalog, type CatalogFilters } from "@/lib/items";
 import { categoryLabel, colorLabel } from "@/lib/taxonomy";
@@ -14,6 +15,8 @@ export function Catalog({ user, filters }: { user: CurrentUser; filters: Catalog
   const pending = results.filter((i) => i.bgStatus === "pending" || i.bgStatus === "processing" || i.tagStatus === "pending");
   const canTag = taggerEnabled();
   const untagged = facets.category.uncategorized ?? 0;
+  const unchecked = canTag ? countUnreviewed(user.id) : 0;
+  const tagging = pending.some((i) => i.tagStatus === "pending");
   const nActive = activeFilterCount(filters);
 
   if (total === 0) return <EmptyCloset name={user.name} />;
@@ -64,7 +67,7 @@ export function Catalog({ user, filters }: { user: CurrentUser; filters: Catalog
         </aside>
 
         <section>
-          {untagged > 0 && !pending.some((i) => i.tagStatus === "pending") && (
+          {untagged > 0 && !tagging && (
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
               <span>{untagged === 1 ? "1 piece needs tags." : `${untagged} pieces need tags.`}</span>
               {canTag ? (
@@ -75,6 +78,12 @@ export function Catalog({ user, filters }: { user: CurrentUser; filters: Catalog
                 <span className="text-muted">Open a piece to add its tags.</span>
               )}
             </div>
+          )}
+          {unchecked > 0 && !tagging && (
+            <form action={redetectAllTags} className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+              <span>{unchecked === 1 ? "1 piece was" : `${unchecked} pieces were`} tagged automatically and not checked yet.</span>
+              <button className="underline hover:text-ink">Detect their tags again</button>
+            </form>
           )}
           {chips.length > 0 && (
             <div className="mb-5 flex flex-wrap items-center gap-2">

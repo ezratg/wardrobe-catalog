@@ -25,7 +25,7 @@ test("sign up, upload photos, tag an item, and filter the catalog", async ({ pag
   await expect(page.getByRole("link", { name: "Black jeans" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Red skirt" })).toBeVisible();
   await page.getByRole("link", { name: "Go to my closet" }).click();
-  await expect(page.getByText("3 pieces")).toBeVisible();
+  await expect(page.getByText("3 pieces", { exact: true })).toBeVisible();
   await expect(page.getByText("Needs tags")).toHaveCount(0);
   await expect(page.getByRole("link", { name: /^Tops\s*1$/, includeHidden: true }).first()).toBeAttached();
   await expect(page.getByRole("link", { name: /^Bottoms\s*2$/, includeHidden: true }).first()).toBeAttached();
@@ -45,11 +45,19 @@ test("sign up, upload photos, tag an item, and filter the catalog", async ({ pag
   // Colour was detected from the cutout: the red filter finds the skirt only
   if (info.project.name === "mobile") await page.getByText(/^Filters/).click();
   await page.getByRole("link", { name: /^Red, 1 items/ }).filter({ visible: true }).click();
-  await expect(page.getByText("1 of 3 pieces")).toBeVisible();
+  await expect(page.getByText("1 of 3 pieces", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Red A-line skirt" })).toBeVisible();
 
   await page.getByRole("link", { name: "Clear all" }).click();
-  await expect(page.getByText("3 pieces")).toBeVisible();
+  await expect(page.getByText("3 pieces", { exact: true })).toBeVisible();
+
+  // The two unchecked pieces can be re-detected; the reviewed skirt is left alone
+  const unchecked = page.getByText("2 pieces were tagged automatically and not checked yet.");
+  await expect(unchecked).toBeVisible();
+  await page.getByRole("button", { name: "Detect their tags again" }).click();
+  await expect(unchecked).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole("link", { name: "Blue T-shirt" }).filter({ visible: true })).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Red A-line skirt" })).toBeVisible();
   await page.screenshot({ path: `e2e/screenshots/catalog-${info.project.name}.png`, fullPage: true });
 
   // Favourite toggle
@@ -98,7 +106,7 @@ test("sign up, upload photos, tag an item, and filter the catalog", async ({ pag
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("correct horse battery");
   await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page.getByText("3 pieces")).toBeVisible();
+  await expect(page.getByText("3 pieces", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Outfits", exact: true }).click();
   await expect(page.getByRole("link", { name: /Weekend/ })).toBeVisible();
 });
