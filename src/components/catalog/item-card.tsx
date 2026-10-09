@@ -5,7 +5,8 @@ import { displayName, imageUrl } from "@/lib/items";
 import { categoryLabel, colorHex, colorLabel } from "@/lib/taxonomy";
 
 export function ItemCard({ item }: { item: Item }) {
-  const processing = item.bgStatus === "pending" || item.bgStatus === "processing";
+  const removing = item.bgStatus === "pending" || item.bgStatus === "processing";
+  const processing = removing || item.tagStatus === "pending";
   return (
     <article className="group relative">
       <Link href={`/items/${item.id}`} className="block">
@@ -20,7 +21,7 @@ export function ItemCard({ item }: { item: Item }) {
           {processing && (
             <div className="absolute inset-0 flex items-end">
               <div className="shimmer absolute inset-0" />
-              <span className="relative m-2 rounded-full bg-surface/90 px-2.5 py-1 text-[11px] font-medium">Removing background…</span>
+              <span className="relative m-2 rounded-full bg-surface/90 px-2.5 py-1 text-[11px] font-medium">{removing ? "Removing background…" : "Tagging…"}</span>
             </div>
           )}
           {item.bgStatus === "failed" && (

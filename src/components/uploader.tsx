@@ -8,7 +8,8 @@ type Upload = {
   key: string;
   name: string;
   preview: string;
-  state: "queued" | "uploading" | "processing" | "done" | "failed" | "error";
+  state: "queued" | "uploading" | "processing" | "tagging" | "done" | "failed" | "error";
+  label?: string;
   error?: string;
   itemId?: string;
 };
@@ -32,7 +33,7 @@ async function prepare(file: File): Promise<Blob> {
   }
 }
 
-export function Uploader() {
+export function Uploader({ autoTag }: { autoTag: boolean }) {
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [category, setCategory] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -75,21 +76,22 @@ export function Uploader() {
   );
 
   // Poll background removal for uploaded items.
-  const processingIds = uploads.filter((u) => u.state === "processing" && u.itemId).map((u) => u.itemId!);
+  const processingIds = uploads.filter((u) => (u.state === "processing" || u.state === "tagging") && u.itemId).map((u) => u.itemId!);
   const idsKey = processingIds.join(",");
   useEffect(() => {
     if (!idsKey) return;
     const t = setInterval(async () => {
       try {
         const res = await fetch(`/api/items/status?ids=${idsKey}`, { cache: "no-store" });
-        const { items } = (await res.json()) as { items: { id: string; bgStatus: string; imageVersion: number }[] };
+        const { items } = (await res.json()) as { items: { id: string; bgStatus: string; tagStatus: string; name: string; imageVersion: number }[] };
         setUploads((us) =>
           us.map((u) => {
             const s = items.find((i) => i.id === u.itemId);
-            if (!s || u.state !== "processing") return u;
-            if (s.bgStatus === "done") return { ...u, state: "done", preview: `/api/images/${s.id}/thumb?v=${s.imageVersion}` };
-            if (s.bgStatus === "failed") return { ...u, state: "failed" };
-            return u;
+            if (!s || (u.state !== "processing" && u.state !== "tagging")) return u;
+            if (s.bgStatus === "pending" || s.bgStatus === "processing") return u;
+            const preview = s.bgStatus === "done" ? `/api/images/${s.id}/thumb?v=${s.imageVersion}` : u.preview;
+            if (s.tagStatus === "pending") return { ...u, state: "tagging", preview };
+            return { ...u, state: s.bgStatus === "failed" ? "failed" : "done", preview, label: s.name || undefined };
           }),
         );
       } catch {}
@@ -98,13 +100,19 @@ export function Uploader() {
   }, [idsKey]);
 
   const done = uploads.filter((u) => u.state === "done" || u.state === "failed").length;
+  const finished = (u: Upload) => u.state === "done" || u.state === "failed";
 
   return (
     <div>
+      <p className="mb-4 text-sm text-muted">
+        {autoTag
+          ? "Each piece is named and tagged automatically, so you can drop in your whole closet at once."
+          : "Auto-tagging is off, so you'll tag pieces yourself. Add an Anthropic API key to turn it on (see the README)."}
+      </p>
       <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
         <label htmlFor="cat" className="text-muted">These are all</label>
         <select id="cat" className="input w-auto" value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="">Mixed (tag later)</option>
+          <option value="">{autoTag ? "Mixed (detect automatically)" : "Mixed (tag later)"}</option>
           {CATEGORIES.filter((c) => c.id !== "uncategorized").map((c) => (
             <option key={c.id} value={c.id}>{c.label}</option>
           ))}
@@ -144,14 +152,16 @@ export function Uploader() {
                 <div className="relative aspect-[4/5] overflow-hidden rounded-lg bg-tile">
                   {/* eslint-disable-next-line @next/next/no-img-element -- local previews */}
                   <img src={u.preview} alt="" className={`absolute inset-0 size-full ${u.state === "done" ? "object-contain p-2" : "object-cover"}`} />
-                  {(u.state === "queued" || u.state === "uploading" || u.state === "processing") && <div className="shimmer absolute inset-0" />}
+                  {!finished(u) && u.state !== "error" && <div className="shimmer absolute inset-0" />}
                 </div>
                 <div className="mt-1.5 truncate">
-                  {u.state === "done" && u.itemId ? (
-                    <Link href={`/items/${u.itemId}`} className="text-ok underline">Ready, add tags</Link>
+                  {finished(u) && u.itemId ? (
+                    <Link href={`/items/${u.itemId}`} className={u.state === "done" ? "text-ok underline" : "text-warn underline"}>
+                      {u.label ?? (u.state === "failed" ? "Kept original photo" : "Ready, add tags")}
+                    </Link>
                   ) : (
                     <span className={u.state === "error" || u.state === "failed" ? "text-accent" : "text-muted"}>
-                      {{ queued: "Waiting…", uploading: "Uploading…", processing: "Removing background…", failed: "Kept original photo", error: u.error, done: "" }[u.state]}
+                      {{ queued: "Waiting…", uploading: "Uploading…", processing: "Removing background…", tagging: "Tagging…", failed: "", error: u.error, done: "" }[u.state]}
                     </span>
                   )}
                 </div>

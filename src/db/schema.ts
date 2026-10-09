@@ -21,6 +21,8 @@ export const sessions = sqliteTable("sessions", {
 });
 
 export type BgStatus = "pending" | "processing" | "done" | "failed";
+// Auto-tagging: "off" when no AI key is configured or the user tagged it themselves.
+export type TagStatus = "off" | "pending" | "done" | "failed";
 
 export const items = sqliteTable(
   "items",
@@ -50,6 +52,8 @@ export const items = sqliteTable(
     bgStatus: text("bg_status").$type<BgStatus>().notNull().default("pending"),
     bgError: text("bg_error"),
     imageVersion: integer("image_version").notNull().default(1),
+    tagStatus: text("tag_status").$type<TagStatus>().notNull().default("off"),
+    tagError: text("tag_error"),
 
     createdAt: createdAt(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })

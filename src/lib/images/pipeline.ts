@@ -1,9 +1,11 @@
+import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { removeBackground } from "./background";
 import { detectColors } from "./colors";
 import { readImage, writeImage } from "./storage";
+import { tagPhoto, taggerEnabled } from "./tagger";
 
 const MAX_EDGE = 2000;
 const THUMB_EDGE = 640;
@@ -26,8 +28,13 @@ export async function storeOriginal(ownerId: string, itemId: string, upload: Buf
 }
 
 async function processItem(itemId: string) {
+  await removeItemBackground(itemId);
+  await autoTagItem(itemId);
+}
+
+async function removeItemBackground(itemId: string) {
   const item = db.select().from(schema.items).where(eq(schema.items.id, itemId)).get();
-  if (!item) return;
+  if (!item || (item.bgStatus !== "pending" && item.bgStatus !== "processing")) return;
   db.update(schema.items).set({ bgStatus: "processing", bgError: null }).where(eq(schema.items.id, itemId)).run();
 
   try {
@@ -69,7 +76,75 @@ async function processItem(itemId: string) {
   }
 }
 
-// A small in-process queue: one photo at a time keeps memory and CPU in check.
+/** Fill in any tags the owner hasn't set yet, using the cut-out (or the original if removal failed). */
+async function autoTagItem(itemId: string) {
+  const item = db.select().from(schema.items).where(eq(schema.items.id, itemId)).get();
+  if (!item || item.tagStatus !== "pending") return;
+  if (!taggerEnabled()) {
+    db.update(schema.items).set({ tagStatus: "off" }).where(eq(schema.items.id, itemId)).run();
+    return;
+  }
+  try {
+    const img = (item.hasCutout && (await readImage(item.ownerId, itemId, "cutout"))) || (await readImage(item.ownerId, itemId, "original"));
+    if (!img) throw new Error("Photo is missing");
+    const tags = await tagPhoto(img.data);
+
+    // Re-read: the owner may have edited the item while we were waiting.
+    const now = db.select().from(schema.items).where(eq(schema.items.id, itemId)).get();
+    if (!now) return;
+    db.update(schema.items)
+      .set({
+        tagStatus: "done",
+        tagError: null,
+        name: now.name || tags.name,
+        category: now.category === "uncategorized" ? tags.category : now.category,
+        subcategory: now.subcategory || tags.subcategory || null,
+        pattern: now.pattern || tags.pattern,
+        formality: now.formality || tags.formality,
+        warmth: now.warmth.length ? now.warmth : tags.warmth,
+        styles: now.styles.length ? now.styles : tags.styles,
+        colors: now.colorsConfirmed || !tags.colors.length ? now.colors : tags.colors,
+      })
+      .where(eq(schema.items.id, itemId))
+      .run();
+  } catch (err) {
+    console.error(`[tag] item ${itemId} failed`, err);
+    db.update(schema.items)
+      .set({ tagStatus: "failed", tagError: tagErrorMessage(err) })
+      .where(eq(schema.items.id, itemId))
+      .run();
+  }
+}
+
+function tagErrorMessage(err: unknown) {
+  if (err instanceof Anthropic.AuthenticationError) return "The Anthropic API key was rejected";
+  if (err instanceof Anthropic.RateLimitError) return "Too many requests at once; try again shortly";
+  if (err instanceof Anthropic.APIConnectionError) return "Couldn't reach the tagging service";
+  if (err instanceof Anthropic.APIError) return `Tagging service error (${err.status})`;
+  return err instanceof Error ? err.message.slice(0, 300) : "Unknown error";
+}
+
+/** Queue auto-tagging for an owner's items that still need a category. Returns how many were queued. */
+export function autoTagUntagged(ownerId: string) {
+  if (!taggerEnabled()) return 0;
+  const rows = db
+    .update(schema.items)
+    .set({ tagStatus: "pending", tagError: null })
+    .where(
+      and(
+        eq(schema.items.ownerId, ownerId),
+        eq(schema.items.category, "uncategorized"),
+        inArray(schema.items.tagStatus, ["off", "failed"]),
+      ),
+    )
+    .returning({ id: schema.items.id })
+    .all();
+  rows.forEach((r) => enqueue(r.id));
+  return rows.length;
+}
+
+// A small in-process queue: one photo at a time keeps memory and CPU in check,
+// and keeps auto-tagging requests to one at a time.
 // Items stay "pending" in the database, so anything left over is picked up
 // again on the next server start (see src/instrumentation.ts).
 type Queue = { ids: string[]; running: boolean };
@@ -95,7 +170,7 @@ export function resumePending() {
   const stuck = db
     .select({ id: schema.items.id })
     .from(schema.items)
-    .where(inArray(schema.items.bgStatus, ["pending", "processing"]))
+    .where(or(inArray(schema.items.bgStatus, ["pending", "processing"]), eq(schema.items.tagStatus, "pending")))
     .all();
   stuck.forEach((r) => enqueue(r.id));
   return stuck.length;
@@ -105,6 +180,16 @@ export function retry(ownerId: string, itemId: string) {
   const res = db
     .update(schema.items)
     .set({ bgStatus: "pending", bgError: null })
+    .where(and(eq(schema.items.id, itemId), eq(schema.items.ownerId, ownerId)))
+    .run();
+  if (res.changes) enqueue(itemId);
+}
+
+export function retryTagging(ownerId: string, itemId: string) {
+  if (!taggerEnabled()) return;
+  const res = db
+    .update(schema.items)
+    .set({ tagStatus: "pending", tagError: null })
     .where(and(eq(schema.items.id, itemId), eq(schema.items.ownerId, ownerId)))
     .run();
   if (res.changes) enqueue(itemId);

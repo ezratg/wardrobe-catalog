@@ -6,6 +6,7 @@ Your closet as a catalog. Upload photos of your clothes, the background is remov
 
 - Accounts (email + password, sessions stored server-side)
 - Batch photo upload from desktop or phone (photos are downscaled on the device first)
+- Auto-tagging (optional): Claude looks at each photo and fills in a name, category, type, colours, pattern, dress code, weather and style, so you can upload a whole closet at once. Anything you've already set is left alone. Existing untagged pieces can be tagged in one click from the catalog
 - Automatic background removal on the server, with the garment cropped and centred
 - Colour detection from the cutout (snapped to a named palette)
 - Catalog with category, colour, weather, style and status filters, search, sorting, favourites
@@ -28,11 +29,19 @@ npm run dev        # http://localhost:3000
 
 Data (SQLite database and photos) lives in `./data`, or wherever `DATA_DIR` points. Migrations run automatically on start.
 
+### Turning on auto-tagging
+
+1. Create an API key at [console.anthropic.com](https://console.anthropic.com). Usage is billed to that account.
+2. Copy `.env.example` to `.env.local` and set `ANTHROPIC_API_KEY`.
+3. Restart the app.
+
+Each photo is one request to `claude-opus-5-5` with the image shrunk to 512px and low effort, which keeps it to a cent or two per photo. Set `AUTO_TAG_MODEL=claude-haiku-5-5` in `.env.local` for a cheaper model. Without a key, the app works the same and you tag pieces yourself.
+
 ### Tests
 
 ```bash
 npm test           # outfit rule unit tests
-npm run test:e2e   # builds, starts on :3123, runs desktop + mobile flows
+npm run test:e2e   # builds, starts on :3123 with a fake AI service, runs desktop + mobile flows
 ```
 
 Set `PW_CHROMIUM_PATH` to use an already-installed Chromium instead of `npx playwright install`.

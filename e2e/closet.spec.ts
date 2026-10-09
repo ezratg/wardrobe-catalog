@@ -20,15 +20,22 @@ test("sign up, upload photos, tag an item, and filter the catalog", async ({ pag
   await expect(page.getByText("3 of 3 ready")).toBeVisible({ timeout: 90_000 });
   if (info.project.name === "desktop") await page.screenshot({ path: "e2e/screenshots/upload.png" });
 
-  // Catalog shows them, needing tags
+  // Auto-tagging named and categorised every piece
+  await expect(page.getByRole("link", { name: "Blue T-shirt" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Black jeans" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Red skirt" })).toBeVisible();
   await page.getByRole("link", { name: "Go to my closet" }).click();
   await expect(page.getByText("3 pieces")).toBeVisible();
-  await expect(page.getByText("Needs tags")).toHaveCount(3);
+  await expect(page.getByText("Needs tags")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /^Tops\s*1$/, includeHidden: true }).first()).toBeAttached();
+  await expect(page.getByRole("link", { name: /^Bottoms\s*2$/, includeHidden: true }).first()).toBeAttached();
 
-  // Tag the first (newest = skirt, uploaded last)
+  // Review the auto tags on the skirt and adjust them
   await page.locator("article a").first().click();
+  await expect(page.getByText("These tags were filled in automatically")).toBeVisible();
+  await expect(page.getByLabel("Category").filter({ visible: true })).toHaveValue("bottom");
+  await expect(page.getByLabel("Name").filter({ visible: true })).toHaveValue("Red skirt");
   await page.getByLabel("Name").filter({ visible: true }).fill("Red A-line skirt");
-  await page.getByLabel("Category").filter({ visible: true }).selectOption("bottom");
   await page.getByText("Warm", { exact: true }).filter({ visible: true }).click();
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("status").filter({ visible: true })).toHaveText("Saved");
@@ -49,10 +56,9 @@ test("sign up, upload photos, tag an item, and filter the catalog", async ({ pag
   await page.getByRole("button", { name: "Add to favorites" }).first().click();
   await expect(page.getByRole("button", { name: "Remove from favorites" })).toHaveCount(1);
 
-  // Tag the shirt as a top so outfits can be built
-  await page.getByRole("link", { name: "Untitled item" }).filter({ visible: true }).last().click();
+  // Rename the shirt
+  await page.getByRole("link", { name: "Blue T-shirt" }).filter({ visible: true }).first().click();
   await page.getByLabel("Name").filter({ visible: true }).fill("Blue tee");
-  await page.getByLabel("Category").filter({ visible: true }).selectOption("top");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("status").filter({ visible: true })).toHaveText("Saved");
 
@@ -62,6 +68,7 @@ test("sign up, upload photos, tag an item, and filter the catalog", async ({ pag
   const suggestion = page.getByTestId("suggestion").first();
   await expect(suggestion.getByAltText("Blue tee")).toBeVisible();
   await expect(suggestion.getByText("Add shoes")).toBeVisible();
+  await expect(page.getByTestId("suggestion")).toHaveCount(2); // with the skirt, and with the jeans
   if (info.project.name === "desktop") await page.screenshot({ path: "e2e/screenshots/suggest.png", fullPage: true });
   await suggestion.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("heading", { name: "Outfit idea 1" })).toBeVisible();

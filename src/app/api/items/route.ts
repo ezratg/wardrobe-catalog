@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { enqueue, storeOriginal } from "@/lib/images/pipeline";
+import { taggerEnabled } from "@/lib/images/tagger";
 import { CATEGORIES } from "@/lib/taxonomy";
 
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -23,6 +24,7 @@ export async function POST(req: Request) {
     .values({
       ownerId: user.id,
       category: CATEGORIES.some((c) => c.id === category) ? category : "uncategorized",
+      tagStatus: taggerEnabled() ? "pending" : "off",
     })
     .returning()
     .get();

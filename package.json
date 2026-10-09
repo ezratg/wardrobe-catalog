@@ -12,6 +12,7 @@
     "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.132.1",
     "@imgly/background-removal-node": "^1.4.5",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.4",

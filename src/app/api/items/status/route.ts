@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   const ids = (new URL(req.url).searchParams.get("ids") ?? "").split(",").filter(Boolean).slice(0, 200);
   if (!ids.length) return NextResponse.json({ items: [] });
   const rows = db
-    .select({ id: schema.items.id, bgStatus: schema.items.bgStatus, imageVersion: schema.items.imageVersion })
+    .select({ id: schema.items.id, bgStatus: schema.items.bgStatus, tagStatus: schema.items.tagStatus, name: schema.items.name, imageVersion: schema.items.imageVersion })
     .from(schema.items)
     .where(and(eq(schema.items.ownerId, user.id), inArray(schema.items.id, ids)))
     .all();

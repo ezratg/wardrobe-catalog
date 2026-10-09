@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { autoTagAll } from "@/app/actions/items";
 import type { CurrentUser } from "@/lib/auth/dal";
+import { taggerEnabled } from "@/lib/images/tagger";
 import { activeFilterCount, filtersToQuery, queryCatalog, type CatalogFilters } from "@/lib/items";
 import { categoryLabel, colorLabel } from "@/lib/taxonomy";
 import { FilterPanel } from "./filter-panel";
@@ -9,7 +11,9 @@ import { StatusPoller } from "./status-poller";
 
 export function Catalog({ user, filters }: { user: CurrentUser; filters: CatalogFilters }) {
   const { total, results, facets } = queryCatalog(user.id, filters);
-  const pending = results.filter((i) => i.bgStatus === "pending" || i.bgStatus === "processing");
+  const pending = results.filter((i) => i.bgStatus === "pending" || i.bgStatus === "processing" || i.tagStatus === "pending");
+  const canTag = taggerEnabled();
+  const untagged = facets.category.uncategorized ?? 0;
   const nActive = activeFilterCount(filters);
 
   if (total === 0) return <EmptyCloset name={user.name} />;
@@ -60,6 +64,18 @@ export function Catalog({ user, filters }: { user: CurrentUser; filters: Catalog
         </aside>
 
         <section>
+          {untagged > 0 && !pending.some((i) => i.tagStatus === "pending") && (
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
+              <span>{untagged === 1 ? "1 piece needs tags." : `${untagged} pieces need tags.`}</span>
+              {canTag ? (
+                <form action={autoTagAll}>
+                  <button className="btn-primary">Tag them automatically</button>
+                </form>
+              ) : (
+                <span className="text-muted">Add an Anthropic API key to tag photos automatically (see the README).</span>
+              )}
+            </div>
+          )}
           {chips.length > 0 && (
             <div className="mb-5 flex flex-wrap items-center gap-2">
               {chips.map((c) => (
@@ -89,7 +105,7 @@ export function Catalog({ user, filters }: { user: CurrentUser; filters: Catalog
           )}
         </section>
       </div>
-      {pending.length > 0 && <StatusPoller ids={pending.map((i) => i.id)} />}
+      {pending.length > 0 && <StatusPoller items={pending} />}
     </div>
   );
 }
