@@ -13,9 +13,11 @@ export async function UserNav() {
     );
   }
   return (
-    <nav className="flex items-center gap-2">
-      <Link href="/upload" className="btn-primary">
-        <span aria-hidden>+</span> Add clothes
+    <nav className="flex items-center gap-1 sm:gap-2">
+      <Link href="/" className="btn px-2 sm:px-3">Closet</Link>
+      <Link href="/outfits" className="btn px-2 sm:px-3">Outfits</Link>
+      <Link href="/upload" className="btn-primary" aria-label="Add clothes">
+        <span aria-hidden>+</span><span className="hidden sm:inline">Add clothes</span>
       </Link>
       <details className="relative">
         <summary

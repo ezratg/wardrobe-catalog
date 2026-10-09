@@ -10,10 +10,12 @@ Your closet as a catalog. Upload photos of your clothes, the background is remov
 - Colour detection from the cutout (snapped to a named palette)
 - Catalog with category, colour, weather, style and status filters, search, sorting, favourites
 - Item page with tags: category, type, colours, pattern, dress code, weather, style, laundry status, brand, size, notes, wear count
+- Outfit builder: pick pieces by slot, see a flat-lay preview and a live style check, save and log wears
+- Outfit ideas: rule-based suggestions (structure, colour harmony, one statement pattern, matching dress code, shared style), filterable by dress code and style, or built around one piece. Rules live in `src/lib/outfits/engine.ts`
 
 ## Planned next
 
-Weather-aware suggestions, Google Calendar, chat-driven outfit design, and sharing a closet with friends. The schema already has `outfits`, `outfit_items` and `closet_shares` tables for these.
+Weather-aware suggestions, Google Calendar, chat-driven outfit design, and sharing a closet with friends. The schema already has a `closet_shares` table for sharing.
 
 ## Running it
 
@@ -29,6 +31,7 @@ Data (SQLite database and photos) lives in `./data`, or wherever `DATA_DIR` poin
 ### Tests
 
 ```bash
+npm test           # outfit rule unit tests
 npm run test:e2e   # builds, starts on :3123, runs desktop + mobile flows
 ```
 

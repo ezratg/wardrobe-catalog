@@ -8,7 +8,7 @@ test("sign up, upload photos, tag an item, and filter the catalog", async ({ pag
 
   await page.goto("/");
   await page.getByRole("link", { name: "Get started" }).click();
-  await page.getByLabel("Name").fill("Ezra Test");
+  await page.getByLabel("Name").filter({ visible: true }).fill("Ezra Test");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("correct horse battery");
   await page.getByRole("button", { name: "Create account" }).click();
@@ -27,11 +27,11 @@ test("sign up, upload photos, tag an item, and filter the catalog", async ({ pag
 
   // Tag the first (newest = skirt, uploaded last)
   await page.locator("article a").first().click();
-  await page.getByLabel("Name").fill("Red A-line skirt");
-  await page.getByLabel("Category").selectOption("bottom");
+  await page.getByLabel("Name").filter({ visible: true }).fill("Red A-line skirt");
+  await page.getByLabel("Category").filter({ visible: true }).selectOption("bottom");
   await page.getByText("Warm", { exact: true }).filter({ visible: true }).click();
   await page.getByRole("button", { name: "Save" }).click();
-  await expect(page.getByRole("status")).toHaveText("Saved");
+  await expect(page.getByRole("status").filter({ visible: true })).toHaveText("Saved");
   if (info.project.name === "desktop") await page.screenshot({ path: "e2e/screenshots/item.png", fullPage: true });
   await page.getByRole("link", { name: "← All clothes" }).click();
 
@@ -49,6 +49,42 @@ test("sign up, upload photos, tag an item, and filter the catalog", async ({ pag
   await page.getByRole("button", { name: "Add to favorites" }).first().click();
   await expect(page.getByRole("button", { name: "Remove from favorites" })).toHaveCount(1);
 
+  // Tag the shirt as a top so outfits can be built
+  await page.getByRole("link", { name: "Untitled item" }).filter({ visible: true }).last().click();
+  await page.getByLabel("Name").filter({ visible: true }).fill("Blue tee");
+  await page.getByLabel("Category").filter({ visible: true }).selectOption("top");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("status").filter({ visible: true })).toHaveText("Saved");
+
+  // Suggestions: "Style it" builds around this piece
+  await page.getByRole("link", { name: "Style it" }).click();
+  await expect(page.getByText("Built around")).toBeVisible();
+  const suggestion = page.getByTestId("suggestion").first();
+  await expect(suggestion.getByAltText("Blue tee")).toBeVisible();
+  await expect(suggestion.getByText("Add shoes")).toBeVisible();
+  if (info.project.name === "desktop") await page.screenshot({ path: "e2e/screenshots/suggest.png", fullPage: true });
+  await suggestion.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("heading", { name: "Outfit idea 1" })).toBeVisible();
+  await page.getByRole("button", { name: "Wearing this today" }).click();
+  await expect(page.getByText(/Last worn/)).toBeVisible();
+
+  // Manual builder
+  await page.getByRole("link", { name: "Outfits", exact: true }).click();
+  await page.getByRole("link", { name: "Build an outfit" }).click();
+  await page.getByRole("tab", { name: "Tops" }).click();
+  await page.getByRole("button", { name: "Blue tee" }).click();
+  await page.getByRole("tab", { name: "Bottoms" }).click();
+  await page.getByRole("button", { name: "Red A-line skirt" }).click();
+  await expect(page.getByText("One pop of red against neutrals").or(page.getByText(/blue and red|red and blue/i)).first()).toBeVisible();
+  await page.getByLabel("Name").filter({ visible: true }).fill("Weekend");
+  await page.getByRole("button", { name: "Save outfit" }).click();
+  await expect(page.getByRole("heading", { name: "Weekend" })).toBeVisible();
+  if (info.project.name === "desktop") await page.screenshot({ path: "e2e/screenshots/builder.png", fullPage: true });
+  await page.getByRole("link", { name: "← Outfits" }).click();
+  await expect(page.getByRole("link", { name: /Weekend/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Outfit idea 1/ })).toBeVisible();
+  if (info.project.name === "desktop") await page.screenshot({ path: "e2e/screenshots/outfits.png", fullPage: true });
+
   // Log out and back in
   await page.getByLabel("Account menu").click();
   await page.getByRole("button", { name: "Log out" }).click();
@@ -56,6 +92,8 @@ test("sign up, upload photos, tag an item, and filter the catalog", async ({ pag
   await page.getByLabel("Password").fill("correct horse battery");
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page.getByText("3 pieces")).toBeVisible();
+  await page.getByRole("link", { name: "Outfits", exact: true }).click();
+  await expect(page.getByRole("link", { name: /Weekend/ })).toBeVisible();
 });
 
 test("another account can't see someone else's photos", async ({ request }) => {

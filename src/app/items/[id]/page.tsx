@@ -28,7 +28,7 @@ async function ItemDetail({ params }: Pick<PageProps<"/items/[id]">, "params">) 
   const processing = item.bgStatus === "pending" || item.bgStatus === "processing";
 
   return (
-    <div className="mt-4 grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-14">
+    <div className="mt-4 grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-14">
       <div className="md:sticky md:top-20 md:self-start">
         <ImageViewer
           name={displayName(item)}
@@ -63,6 +63,9 @@ async function ItemDetail({ params }: Pick<PageProps<"/items/[id]">, "params">) 
           <form action={markWorn.bind(null, item.id)}>
             <button className="btn-ghost">Wore it today</button>
           </form>
+          {item.category !== "uncategorized" && (
+            <Link href={`/outfits/suggest?with=${item.id}`} className="btn-ghost">Style it</Link>
+          )}
         </div>
 
         <hr className="my-8 border-line" />

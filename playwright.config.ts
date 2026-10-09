@@ -4,7 +4,7 @@ const PORT = 3123;
 
 export default defineConfig({
   testDir: "e2e",
-  timeout: 120_000,
+  timeout: 300_000,
   use: {
     baseURL: `http://localhost:${PORT}`,
     // Use a pre-installed Chromium when one is provided (e.g. in CI images).
